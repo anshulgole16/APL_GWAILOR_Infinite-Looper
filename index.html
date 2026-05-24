@@ -39,6 +39,10 @@
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <!-- React & Babel CDNs -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -139,6 +143,34 @@
   <script type="text/babel">
     const { useState, useEffect, useRef, useCallback } = React;
 
+    // ─── FIREBASE CONFIGURATION ──────────────────────────────────────────
+    // Replace with your Firebase settings for real-time cloud data sync
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyD-your-firebase-key-here",
+      authDomain: "cricmind-ai.firebaseapp.com",
+      projectId: "cricmind-ai",
+      storageBucket: "cricmind-ai.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
+
+    // Google Gemini API Key
+    const GEMINI_KEY = ""; // Pro Hackathon: Paste your Google Gemini API Key here!
+
+    // Initialize Firebase Live Firestore Database Connection
+    let db = null;
+    try {
+      if (typeof firebase !== 'undefined') {
+        if (!firebase.apps.length) {
+          firebase.initializeApp(FIREBASE_CONFIG);
+        }
+        db = firebase.firestore();
+        console.log("Firebase initialized successfully");
+      }
+    } catch (e) {
+      console.error("Firebase init failed: ", e);
+    }
+
     // Local Storage API Key name
     const STORAGE_KEY = "CRICMIND_GEMINI_KEY";
 
@@ -147,7 +179,7 @@
     // ───────────────────────────────────────────────
     
     // Check key in LocalStorage
-    const getSavedApiKey = () => localStorage.getItem(STORAGE_KEY) || "";
+    const getSavedApiKey = () => localStorage.getItem(STORAGE_KEY) || GEMINI_KEY || "";
 
     async function callGeminiApi(systemPrompt, userPrompt, apiKey, imageBase64 = null) {
       if (!apiKey) throw new Error("API Key is missing.");
@@ -885,6 +917,62 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
     }
 
     // ───────────────────────────────────────────────
+    // UNIFIED ACTION BRIDGE
+    // ───────────────────────────────────────────────
+    function UnifiedActionBridge({ text, setPage, setSelectedScenario }) {
+      const lower = text.toLowerCase();
+      const showStadium = lower.includes("spin") || lower.includes("yorker") || lower.includes("outswing") || lower.includes("fast bowling") || lower.includes("delivery") || lower.includes("bowl");
+      const showPosture = lower.includes("stance") || lower.includes("posture") || lower.includes("elbow") || lower.includes("shoulder") || lower.includes("feet") || lower.includes("backlift") || lower.includes("footwork") || lower.includes("hips") || lower.includes("balance");
+      const showTactics = lower.includes("strategy") || lower.includes("tactic") || lower.includes("contingency") || lower.includes("game plan") || lower.includes("death over");
+
+      if (!showStadium && !showPosture && !showTactics) return null;
+
+      const handleStadiumBypass = () => {
+        let pitch = "Flat";
+        let opponent = "Balanced Squad";
+        if (lower.includes("spin")) {
+          pitch = "Dry Spinning";
+          opponent = "Spin Heavy";
+        } else if (lower.includes("yorker") || lower.includes("outswing")) {
+          pitch = "Bouncy Track";
+          opponent = "Pace Attack";
+        }
+        setSelectedScenario({ pitch, opponent });
+        setPage("strategy");
+      };
+
+      return (
+        <div className="mt-3 pt-2.5 border-t border-white/5 flex flex-wrap gap-2 animate-fadeIn relative z-10">
+          <p className="w-full text-[9px] text-amber-400 font-display font-black uppercase tracking-widest leading-none mb-1">🔗 Unified Action Bridge</p>
+          {showStadium && (
+            <button
+              onClick={handleStadiumBypass}
+              className="flex items-center gap-1 bg-green-500/20 hover:bg-green-500/35 border border-green-500/30 text-green-300 font-display font-black text-[9px] uppercase px-2.5 py-1.5 rounded-lg tracking-wider transition-all shadow-md active:scale-95"
+            >
+              🏟️ Play in Stadium
+            </button>
+          )}
+          {showPosture && (
+            <button
+              onClick={() => setPage("scanner")}
+              className="flex items-center gap-1 bg-blue-500/20 hover:bg-blue-500/35 border border-blue-500/30 text-blue-300 font-display font-black text-[9px] uppercase px-2.5 py-1.5 rounded-lg tracking-wider transition-all shadow-md active:scale-95"
+            >
+              🔍 Upload Stance
+            </button>
+          )}
+          {showTactics && (
+            <button
+              onClick={() => setPage("strategy")}
+              className="flex items-center gap-1 bg-amber-500/20 hover:bg-amber-500/35 border border-amber-500/30 text-amber-300 font-display font-black text-[9px] uppercase px-2.5 py-1.5 rounded-lg tracking-wider transition-all shadow-md active:scale-95"
+            >
+              🗺️ Tactics Board
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // ───────────────────────────────────────────────
     // HOME PAGE
     // ───────────────────────────────────────────────
     function HomePage({ setPage, coachMode, setCoachMode }) {
@@ -994,7 +1082,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
     // ───────────────────────────────────────────────
     // AI COACH CHAT ROOM
     // ───────────────────────────────────────────────
-    function CoachPage({ coachMode, apiKey, voiceActive }) {
+    function CoachPage({ coachMode, apiKey, voiceActive, setPage, setSelectedScenario }) {
       const roleLabels = { batter: "Batter", bowler: "Bowler", captain: "Captain", keeper: "Wicketkeeper" };
       const roleEmoji = { batter: "🏏", bowler: "🎯", captain: "👑", keeper: "🧤" };
 
@@ -1062,6 +1150,16 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
             coachReply = SIMULATOR.coach(textToSend, coachMode);
           }
 
+          // Sync session details in real-time to Firebase Firestore DB
+          if (db) {
+            db.collection("coaching_sessions").add({
+              role: coachMode,
+              query: textToSend,
+              reply: coachReply,
+              timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(e => console.error("Firestore sync failed: ", e));
+          }
+
           // Trigger Speech Playout for Coach feedback (Out of box wow factor!)
           speakText(coachReply, voiceActive);
 
@@ -1081,7 +1179,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
           }, 12);
 
         } catch (e) {
-          setMessages(prev => [...prev, { role: "assistant", text: `❌ **Error:** ${e.message}\n\nPlease check your internet connection or configure your API Key in the top-right settings button.` }]);
+          setMessages(prev => [...prev, { role: "assistant", text: `❌ **Error:** ${e.message}\n\nPlease check your internet connection.` }]);
         }
         setLoading(false);
       };
@@ -1118,7 +1216,10 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
                   {m.role === "user" ? (
                     <p className="text-sm font-semibold">{m.text}</p>
                   ) : (
-                    <MD text={m.text} />
+                    <>
+                      <MD text={m.text} />
+                      <UnifiedActionBridge text={m.text} setPage={setPage} setSelectedScenario={setSelectedScenario} />
+                    </>
                   )}
                 </div>
               </div>
@@ -1199,8 +1300,8 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
     // ───────────────────────────────────────────────
     // MATCH STRATEGY ANALYZER
     // ───────────────────────────────────────────────
-    function StrategyPage({ apiKey }) {
-      const [form, setForm] = useState({ role: "batting", opponent: "Balanced", pitch: "Flat", overs: "10", wickets: "2" });
+    function StrategyPage({ apiKey, selectedScenario, setSelectedScenario }) {
+      const [form, setForm] = useState({ role: "batting", opponent: "Balanced Squad", pitch: "Flat", overs: "10", wickets: "2" });
       const [result, setResult] = useState(null);
       const [loading, setLoading] = useState(false);
       const [fieldType, setFieldType] = useState("defensive");
@@ -1209,6 +1310,17 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
 
       const pitches = ["Flat", "Green Seaming", "Dry Spinning", "Bouncy Track", "Slow & Low"];
       const opponents = ["Pace Attack", "Spin Heavy", "Power Hitters", "Balanced Squad", "Inexperienced"];
+
+      useEffect(() => {
+        if (selectedScenario) {
+          setForm(f => ({
+            ...f,
+            pitch: selectedScenario.pitch,
+            opponent: selectedScenario.opponent
+          }));
+          setSelectedScenario(null); // clear after consume
+        }
+      }, [selectedScenario]);
 
       const runAnalysis = async () => {
         if (loading) return;
@@ -1261,9 +1373,23 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
             await new Promise(resolve => setTimeout(resolve, 1000));
             strategyReply = SIMULATOR.strategy(form);
           }
+
+          // Sync strategy plan to Firebase Firestore DB in real-time
+          if (db) {
+            db.collection("strategy_analyses").add({
+              role: form.role,
+              pitch: form.pitch,
+              opponent: form.opponent,
+              overs: form.overs,
+              wickets: form.wickets,
+              strategy: strategyReply,
+              timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(e => console.error("Firestore sync failed: ", e));
+          }
+
           setResult(strategyReply);
         } catch (e) {
-          setResult(`❌ **Error:** ${e.message}\n\nPlease check your key configuration or network connection.`);
+          setResult(`❌ **Error:** ${e.message}\n\nPlease check your key connection.`);
         }
         setLoading(false);
       };
@@ -1452,6 +1578,15 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
 
           // Play Audio Voice Commentary out loud for instant hackathon wow factor
           speakText(commentaryText, voiceActive);
+
+          // Sync commentary details in real-time to Firebase Firestore DB
+          if (db) {
+            db.collection("commentaries").add({
+              event: queryText,
+              commentary: commentaryText,
+              timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(e => console.error("Firestore sync failed: ", e));
+          }
 
           const timeStamp = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
           setFeed(prev => [
@@ -1889,8 +2024,8 @@ The upload batting stance has been successfully parsed by CricMind Vision models
       const [page, setPage] = useState("home");
       const [coachMode, setCoachMode] = useState("batter");
       const [apiKey, setApiKey] = useState(getSavedApiKey());
-      const [isSettingsOpen, setIsSettingsOpen] = useState(false);
       const [voiceActive, setVoiceActive] = useState(true);
+      const [selectedScenario, setSelectedScenario] = useState(null);
 
       const navBar = [
         { id: "home", label: "Home", icon: "home" },
@@ -1922,7 +2057,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
       // Re-trigger icon updates from Lucide library
       useEffect(() => {
         lucide.createIcons();
-      }, [page, isSettingsOpen, voiceActive]);
+      }, [page, voiceActive]);
 
       return (
         <div
@@ -1948,15 +2083,6 @@ The upload batting stance has been successfully parsed by CricMind Vision models
               >
                 <i className={`lucide-${voiceActive ? "volume-2" : "volume-x"} w-4 h-4`}></i>
               </button>
-
-              {/* Settings gear */}
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all ${apiKey ? "text-green-400 bg-green-500/10 border-green-500/20" : "text-gray-400 bg-white/5 border-white/10 hover:bg-white/10"}`}
-                title="Configure Gemini API Settings"
-              >
-                <i className="lucide-settings w-4 h-4 animate-spin-slow"></i>
-              </button>
             </div>
           </div>
 
@@ -1966,8 +2092,8 @@ The upload batting stance has been successfully parsed by CricMind Vision models
           {/* Dynamic Routing Pages Content */}
           <div className="flex-1 overflow-hidden relative">
             {page === "home" && <HomePage setPage={setPage} coachMode={coachMode} setCoachMode={setCoachMode} />}
-            {page === "coach" && <CoachPage coachMode={coachMode} apiKey={apiKey} voiceActive={voiceActive} />}
-            {page === "strategy" && <StrategyPage apiKey={apiKey} />}
+            {page === "coach" && <CoachPage coachMode={coachMode} apiKey={apiKey} voiceActive={voiceActive} setPage={setPage} setSelectedScenario={setSelectedScenario} />}
+            {page === "strategy" && <StrategyPage apiKey={apiKey} selectedScenario={selectedScenario} setSelectedScenario={setSelectedScenario} />}
             {page === "commentary" && <CommentaryPage apiKey={apiKey} voiceActive={voiceActive} />}
             {page === "scanner" && <ScannerPage apiKey={apiKey} />}
             {page === "dashboard" && <DashboardPage setPage={setPage} coachMode={coachMode} />}
@@ -1975,7 +2101,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
 
           {/* Bottom Custom Nav Menu */}
           <div className="border-t border-white/5 bg-black/60 backdrop-blur-md flex-shrink-0 absolute bottom-0 left-0 right-0 z-30">
-            <div className="flex">
+            <div className="flex flex-row justify-around w-full">
               {navBar.map(n => (
                 <button
                   key={n.id}
@@ -1991,14 +2117,6 @@ The upload batting stance has been successfully parsed by CricMind Vision models
               ))}
             </div>
           </div>
-
-          {/* API Settings Modal */}
-          <ApiSettingsModal
-            isOpen={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
-            apiKey={apiKey}
-            setApiKey={setApiKey}
-          />
 
         </div>
       );
