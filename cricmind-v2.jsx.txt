@@ -1,0 +1,1018 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+
+// ─── Gemini API (backend proxy via Anthropic passthrough) ──────────────────
+// NOTE FOR DEPLOYMENT: Move this to Firebase Functions / Node backend.
+// Frontend → Your Backend → Gemini API  (never expose keys in prod)
+const GEMINI_KEY = ""; // Set your Gemini API key here for hackathon demo
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+
+async function callGemini(systemPrompt, userPrompt, imageBase64 = null) {
+  // Build parts
+  const parts = [];
+  if (imageBase64) {
+    parts.push({ inlineData: { mimeType: "image/jpeg", data: imageBase64 } });
+  }
+  parts.push({ text: userPrompt });
+
+  const body = {
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: { maxOutputTokens: 1024, temperature: 0.8 },
+  };
+
+  const res = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+}
+
+// ─── Typing animation hook ─────────────────────────────────────────────────
+function useTypingEffect(text, speed = 12) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    setDisplayed("");
+    setDone(false);
+    if (!text) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) { clearInterval(id); setDone(true); }
+    }, speed);
+    return () => clearInterval(id);
+  }, [text]);
+  return { displayed, done };
+}
+
+// ─── Voice hook ────────────────────────────────────────────────────────────
+function useVoice(onResult) {
+  const recRef = useRef(null);
+  const [listening, setListening] = useState(false);
+  const start = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return alert("Voice not supported. Use Chrome/Edge.");
+    const r = new SR(); r.lang = "en-IN"; r.interimResults = false;
+    r.onresult = e => onResult(e.results[0][0].transcript);
+    r.onend = () => setListening(false);
+    r.onerror = () => setListening(false);
+    recRef.current = r; r.start(); setListening(true);
+  };
+  const stop = () => { recRef.current?.stop(); setListening(false); };
+  return { listening, start, stop };
+}
+
+// ─── Markdown renderer ─────────────────────────────────────────────────────
+function MD({ text }) {
+  return (
+    <div className="space-y-1 text-sm leading-relaxed">
+      {text.split("\n").map((line, i) => {
+        if (!line.trim()) return <div key={i} className="h-1.5" />;
+        if (line.startsWith("## ")) return <h2 key={i} className="font-black text-amber-400 text-base mt-3 mb-1">{line.slice(3)}</h2>;
+        if (line.startsWith("### ")) return <h3 key={i} className="font-bold text-amber-300 mt-2">{line.slice(4)}</h3>;
+        if (line.startsWith("- ") || line.startsWith("* ")) {
+          const html = line.slice(2).replace(/\*\*(.*?)\*\*/g, "<b class='text-amber-200'>$1</b>");
+          return <div key={i} className="flex gap-2 items-start"><span className="text-amber-500 mt-0.5 flex-shrink-0">▸</span><span dangerouslySetInnerHTML={{ __html: html }} /></div>;
+        }
+        if (/^\d+\.\s/.test(line)) {
+          const m = line.match(/^(\d+)\.\s(.+)/);
+          if (m) {
+            const html = m[2].replace(/\*\*(.*?)\*\*/g, "<b class='text-amber-200'>$1</b>");
+            return <div key={i} className="flex gap-2"><span className="text-amber-500 font-bold min-w-[1.4rem]">{m[1]}.</span><span dangerouslySetInnerHTML={{ __html: html }} /></div>;
+          }
+        }
+        const html = line.replace(/\*\*(.*?)\*\*/g, "<b class='text-amber-200'>$1</b>").replace(/\*(.*?)\*/g, "<i class='text-green-300'>$1</i>");
+        return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
+      })}
+    </div>
+  );
+}
+
+// ─── Live Score Ticker ─────────────────────────────────────────────────────
+const TICKER_ITEMS = [
+  "🏏 IND vs AUS — IND 187/4 (34.2 ov)",
+  "🔥 Virat Kohli — 78*(64) | Live",
+  "⚡ RCB vs MI — Super Over",
+  "📊 CSK need 14 off 6 | THRILLER",
+  "🏆 IPL 2026 Playoffs — Today 7:30 PM",
+  "🎯 Jasprit Bumrah — 3/28 (6 ov)",
+];
+
+function Ticker() {
+  const [idx, setIdx] = useState(0);
+  const [fade, setFade] = useState(true);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setFade(false);
+      setTimeout(() => { setIdx(i => (i + 1) % TICKER_ITEMS.length); setFade(true); }, 300);
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="bg-gradient-to-r from-red-900/60 via-red-800/40 to-red-900/60 border-b border-red-500/30 px-4 py-1.5 flex items-center gap-2 overflow-hidden">
+      <span className="text-red-400 text-[10px] font-black tracking-widest flex-shrink-0 bg-red-500/20 px-1.5 py-0.5 rounded">LIVE</span>
+      <span
+        className="text-[11px] text-red-100 font-medium truncate transition-opacity duration-300"
+        style={{ opacity: fade ? 1 : 0 }}
+      >
+        {TICKER_ITEMS[idx]}
+      </span>
+    </div>
+  );
+}
+
+// ─── Field Placement SVG ───────────────────────────────────────────────────
+function FieldPlacement({ strategy }) {
+  const positions = strategy === "aggressive"
+    ? [
+        { x: 50, y: 20, label: "Long On", color: "#f59e0b" },
+        { x: 80, y: 20, label: "Long Off", color: "#f59e0b" },
+        { x: 20, y: 20, label: "Deep SQ", color: "#f59e0b" },
+        { x: 90, y: 50, label: "Deep PT", color: "#f59e0b" },
+        { x: 10, y: 50, label: "Fine Leg", color: "#f59e0b" },
+        { x: 70, y: 72, label: "Mid-off", color: "#10b981" },
+        { x: 30, y: 72, label: "Mid-on", color: "#10b981" },
+        { x: 50, y: 80, label: "Bowler", color: "#ef4444" },
+      ]
+    : [
+        { x: 65, y: 35, label: "Slip", color: "#60a5fa" },
+        { x: 75, y: 42, label: "Gully", color: "#60a5fa" },
+        { x: 85, y: 55, label: "Point", color: "#60a5fa" },
+        { x: 15, y: 55, label: "Sq Leg", color: "#60a5fa" },
+        { x: 70, y: 72, label: "Mid-off", color: "#10b981" },
+        { x: 30, y: 72, label: "Mid-on", color: "#10b981" },
+        { x: 50, y: 18, label: "Long Off", color: "#a78bfa" },
+        { x: 50, y: 80, label: "Bowler", color: "#ef4444" },
+      ];
+
+  return (
+    <div className="bg-gradient-to-b from-green-900/40 to-green-950/60 border border-green-500/20 rounded-2xl p-3">
+      <p className="text-xs text-green-400 font-bold mb-2 text-center tracking-wider">⬛ FIELD PLACEMENT</p>
+      <svg viewBox="0 0 100 100" className="w-full max-h-44">
+        {/* Outfield ellipse */}
+        <ellipse cx="50" cy="50" rx="46" ry="46" fill="none" stroke="#166534" strokeWidth="0.5" />
+        {/* 30-yard circle */}
+        <ellipse cx="50" cy="50" rx="25" ry="25" fill="none" stroke="#15803d" strokeWidth="0.5" strokeDasharray="2,2" />
+        {/* Pitch */}
+        <rect x="45" y="38" width="10" height="24" rx="1" fill="#78350f" opacity="0.6" />
+        <rect x="46" y="40" width="8" height="20" rx="0.5" fill="#92400e" opacity="0.4" />
+        {/* Stumps */}
+        <rect x="48.5" y="38" width="3" height="2" rx="0.5" fill="#fbbf24" />
+        <rect x="48.5" y="59" width="3" height="2" rx="0.5" fill="#fbbf24" />
+        {/* Fielders */}
+        {positions.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="2.5" fill={p.color} opacity="0.9" />
+            <text x={p.x} y={p.y + 5.5} textAnchor="middle" fontSize="3" fill="white" opacity="0.7">{p.label}</text>
+          </g>
+        ))}
+      </svg>
+      <div className="flex gap-2 mt-1 justify-center">
+        <span className="text-[10px] flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />Boundary</span>
+        <span className="text-[10px] flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />Inner</span>
+        <span className="text-[10px] flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />Bowler</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Aggression Meter ─────────────────────────────────────────────────────
+function AggressionMeter({ value }) {
+  const pct = Math.min(100, Math.max(0, value));
+  const color = pct > 70 ? "#ef4444" : pct > 40 ? "#f59e0b" : "#10b981";
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs text-gray-400 font-semibold">⚡ Aggression Meter</span>
+        <span className="text-xs font-black" style={{ color }}>{pct}%</span>
+      </div>
+      <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-1000"
+          style={{ width: `${pct}%`, background: `linear-gradient(90deg, #10b981, ${color})` }}
+        />
+      </div>
+      <div className="flex justify-between mt-1">
+        <span className="text-[10px] text-green-400">Defensive</span>
+        <span className="text-[10px] text-red-400">Ultra Aggressive</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Win Probability Bar ──────────────────────────────────────────────────
+function WinProbability({ batting, bowling }) {
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+      <p className="text-xs text-gray-400 font-semibold mb-2">🏆 Win Probability</p>
+      <div className="flex rounded-full overflow-hidden h-5 text-[10px] font-bold">
+        <div className="flex items-center justify-center transition-all duration-1000 bg-gradient-to-r from-amber-500 to-amber-400 text-black" style={{ width: `${batting}%` }}>{batting}%</div>
+        <div className="flex items-center justify-center transition-all duration-1000 bg-gradient-to-r from-blue-600 to-blue-500 text-white" style={{ width: `${bowling}%` }}>{bowling}%</div>
+      </div>
+      <div className="flex justify-between mt-1.5">
+        <span className="text-[10px] text-amber-400">Your Team</span>
+        <span className="text-[10px] text-blue-400">Opponent</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Radar Chart ──────────────────────────────────────────────────────────
+function RadarChart({ data }) {
+  const size = 100;
+  const cx = 50, cy = 50, r = 35;
+  const keys = Object.keys(data);
+  const vals = Object.values(data);
+  const n = keys.length;
+
+  const getPoint = (i, val) => {
+    const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+    const dist = (val / 100) * r;
+    return { x: cx + dist * Math.cos(angle), y: cy + dist * Math.sin(angle) };
+  };
+
+  const gridLevels = [25, 50, 75, 100];
+  const polyPoints = vals.map((v, i) => { const p = getPoint(i, v); return `${p.x},${p.y}`; }).join(" ");
+
+  return (
+    <svg viewBox="0 0 100 100" className="w-full max-h-36">
+      {/* Grid */}
+      {gridLevels.map(lv =>
+        <polygon key={lv} points={keys.map((_, i) => { const p = getPoint(i, lv); return `${p.x},${p.y}`; }).join(" ")}
+          fill="none" stroke="#ffffff10" strokeWidth="0.5" />
+      )}
+      {/* Axes */}
+      {keys.map((_, i) => { const p = getPoint(i, 100); return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#ffffff15" strokeWidth="0.5" />; })}
+      {/* Data */}
+      <polygon points={polyPoints} fill="#f59e0b30" stroke="#f59e0b" strokeWidth="1.5" />
+      {vals.map((v, i) => { const p = getPoint(i, v); return <circle key={i} cx={p.x} cy={p.y} r="2" fill="#f59e0b" />; })}
+      {/* Labels */}
+      {keys.map((k, i) => {
+        const p = getPoint(i, 115);
+        return <text key={i} x={p.x} y={p.y} textAnchor="middle" fontSize="5.5" fill="#9ca3af" dominantBaseline="middle">{k}</text>;
+      })}
+    </svg>
+  );
+}
+
+// ─── HOME PAGE ─────────────────────────────────────────────────────────────
+function HomePage({ setPage, coachMode, setCoachMode }) {
+  const roles = [
+    { id: "batter", label: "Batter", emoji: "🏏", color: "from-amber-500/20 to-yellow-500/10 border-amber-500/30" },
+    { id: "bowler", label: "Bowler", emoji: "🎯", color: "from-blue-500/20 to-cyan-500/10 border-blue-500/30" },
+    { id: "captain", label: "Captain", emoji: "👑", color: "from-purple-500/20 to-pink-500/10 border-purple-500/30" },
+    { id: "keeper", label: "Wicketkeeper", emoji: "🧤", color: "from-green-500/20 to-emerald-500/10 border-green-500/30" },
+  ];
+
+  const features = [
+    { page: "coach", emoji: "🤖", label: "AI Coach", desc: "Personalized coaching & drills" },
+    { page: "strategy", emoji: "📊", label: "Strategy", desc: "Field placement & tactics" },
+    { page: "commentary", emoji: "🎙️", label: "Commentary", desc: "AI-powered live commentary" },
+    { page: "scanner", emoji: "📸", label: "Screenshot AI", desc: "Upload screenshot for analysis" },
+    { page: "dashboard", emoji: "📈", label: "Dashboard", desc: "Stats, radar & progress" },
+  ];
+
+  return (
+    <div className="overflow-y-auto h-full">
+      <div className="px-4 py-4 space-y-4">
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-900/50 via-green-900/30 to-black border border-amber-500/20 p-5">
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 70% 50%, #f59e0b 0%, transparent 60%), radial-gradient(circle at 20% 80%, #10b981 0%, transparent 50%)" }} />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-3xl">🏏</span>
+              <div>
+                <h1 className="text-2xl font-black text-white tracking-tight leading-none">CricMind AI</h1>
+                <p className="text-amber-400 text-[11px] font-semibold tracking-widest">POWERED BY GEMINI AI</p>
+              </div>
+            </div>
+            <p className="text-gray-300 text-xs mt-2 leading-relaxed">Your personal AI cricket coach. Expert coaching, match strategy & live commentary.</p>
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => setPage("coach")} className="bg-amber-500 hover:bg-amber-400 text-black font-black text-xs px-4 py-2 rounded-xl transition-all shadow-lg shadow-amber-500/30">
+                Start Coaching
+              </button>
+              <button onClick={() => setPage("scanner")} className="bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all border border-white/20">
+                📸 Scan Match
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Coach Mode Selector */}
+        <div>
+          <p className="text-[11px] text-gray-500 font-bold tracking-widest uppercase mb-2">Select Your Role</p>
+          <div className="grid grid-cols-4 gap-2">
+            {roles.map(r => (
+              <button
+                key={r.id}
+                onClick={() => setCoachMode(r.id)}
+                className={`relative rounded-2xl bg-gradient-to-br border p-2.5 text-center transition-all ${r.color} ${coachMode === r.id ? "ring-2 ring-amber-500/60 scale-105" : "opacity-70 hover:opacity-100"}`}
+              >
+                <div className="text-xl mb-1">{r.emoji}</div>
+                <div className="text-[10px] font-bold text-white leading-tight">{r.label}</div>
+                {coachMode === r.id && <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full text-[7px] flex items-center justify-center text-black font-black">✓</div>}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-amber-400/70 mt-1.5 text-center">AI customizes answers based on your role</p>
+        </div>
+
+        {/* Features */}
+        <div>
+          <p className="text-[11px] text-gray-500 font-bold tracking-widest uppercase mb-2">Features</p>
+          <div className="grid grid-cols-2 gap-2">
+            {features.slice(0, 4).map(f => (
+              <button key={f.page} onClick={() => setPage(f.page)}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3.5 text-left transition-all active:scale-95 group">
+                <div className="text-2xl mb-2">{f.emoji}</div>
+                <div className="text-white font-bold text-sm">{f.label}</div>
+                <div className="text-gray-500 text-[11px] mt-0.5 leading-tight">{f.desc}</div>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setPage("dashboard")}
+            className="mt-2 w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3 flex items-center gap-3 transition-all">
+            <span className="text-2xl">📈</span>
+            <div className="text-left">
+              <div className="text-white font-bold text-sm">Dashboard</div>
+              <div className="text-gray-500 text-[11px]">Stats, radar & progress tracker</div>
+            </div>
+            <span className="ml-auto text-gray-500">›</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI COACH PAGE ─────────────────────────────────────────────────────────
+function CoachPage({ coachMode }) {
+  const roleLabels = { batter: "Batter", bowler: "Bowler", captain: "Captain", keeper: "Wicketkeeper" };
+  const roleEmoji = { batter: "🏏", bowler: "🎯", captain: "👑", keeper: "🧤" };
+
+  const [messages, setMessages] = useState([{
+    role: "assistant",
+    text: `${roleEmoji[coachMode]} I'm your AI Cricket Coach, specialized for **${roleLabels[coachMode]}s**!\n\nTell me your challenge and I'll give you a complete coaching plan with drills, tips & pro player examples.`
+  }]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [streamText, setStreamText] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const bottomRef = useRef(null);
+  const { listening, start, stop } = useVoice(t => setInput(t));
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streamText]);
+
+  const SYSTEM = `You are CricMind AI — an elite cricket coach with 20+ years coaching international players. You are currently coaching a ${roleLabels[coachMode]}.
+
+Tailor all advice specifically for a ${roleLabels[coachMode]}. When they describe a problem:
+
+## 🔍 Weakness Analysis
+Root cause diagnosis (2-3 lines)
+
+## 🏋️ Drill Plan
+3-4 specific, numbered drills they can do today
+
+## ⚡ Key Tips
+- 3-4 bullet points, actionable
+
+## 🌟 Pro Reference
+Famous player who faced this — how they fixed it
+
+## 💪 Coach's Word
+One powerful motivating line
+
+Be energetic, specific, use real cricket terminology. Mix occasional Hindi/cricket phrases naturally.`;
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const txt = input.trim();
+    setInput("");
+    setMessages(p => [...p, { role: "user", text: txt }]);
+    setLoading(true);
+    setStreaming(true);
+    setStreamText("");
+    try {
+      const reply = await callGemini(SYSTEM, txt);
+      // Simulate streaming
+      let i = 0;
+      const chars = reply.split("");
+      const id = setInterval(() => {
+        i += 3;
+        setStreamText(reply.slice(0, i));
+        if (i >= reply.length) {
+          clearInterval(id);
+          setStreamText("");
+          setStreaming(false);
+          setMessages(p => [...p, { role: "assistant", text: reply }]);
+        }
+      }, 10);
+    } catch (e) {
+      setStreaming(false);
+      setMessages(p => [...p, { role: "assistant", text: `❌ ${e.message}\n\n*Make sure your Gemini API key is set.*` }]);
+    }
+    setLoading(false);
+  };
+
+  const suggestions = {
+    batter: ["I struggle against yorkers", "My footwork against spin is weak", "How to improve cover drive?", "I get out to short balls"],
+    bowler: ["How to bowl a perfect yorker?", "My outswing isn't working", "Tips for death over bowling", "How to bowl to a left-hander?"],
+    captain: ["Death over field placement strategy", "How to read a batsman's weakness?", "Best powerplay tactics", "When to take DRS?"],
+    keeper: ["Improve my stumping speed", "How to read spin off the pitch?", "Standing up to the stumps tips", "DRS decision making"],
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Role badge */}
+      <div className="px-4 pt-2 pb-1 flex items-center gap-2">
+        <span className="text-xs bg-amber-500/20 border border-amber-500/30 text-amber-400 px-2.5 py-1 rounded-full font-semibold">
+          {roleEmoji[coachMode]} Coaching Mode: {roleLabels[coachMode]}
+        </span>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            {m.role === "assistant" && (
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xs mr-2 mt-1 flex-shrink-0 shadow-lg shadow-amber-500/30">🤖</div>
+            )}
+            <div className={`max-w-[86%] rounded-2xl px-4 py-3 ${
+              m.role === "user"
+                ? "bg-amber-500/20 border border-amber-500/30 text-white"
+                : "bg-white/5 border border-white/10 text-gray-200"
+            }`}>
+              {m.role === "user" ? <p className="text-sm">{m.text}</p> : <MD text={m.text} />}
+            </div>
+          </div>
+        ))}
+
+        {/* Streaming */}
+        {streaming && (
+          <div className="flex justify-start">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xs mr-2 mt-1 flex-shrink-0">🤖</div>
+            <div className="max-w-[86%] bg-white/5 border border-amber-500/20 rounded-2xl px-4 py-3 text-gray-200">
+              <MD text={streamText || "▋"} />
+            </div>
+          </div>
+        )}
+
+        {/* Suggestions */}
+        {messages.length === 1 && !streaming && (
+          <div className="space-y-2 pt-1">
+            <p className="text-[11px] text-gray-500 font-semibold">Try asking:</p>
+            {(suggestions[coachMode] || suggestions.batter).map(s => (
+              <button key={s} onClick={() => setInput(s)}
+                className="w-full text-left text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-3 py-2.5 text-gray-300 transition-all active:scale-[0.98]">
+                💬 {s}
+              </button>
+            ))}
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="px-4 pb-4 pt-2 border-t border-white/5">
+        <div className="flex gap-2">
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder="Describe your cricket problem..."
+            rows={1}
+            className="flex-1 bg-white/5 border border-white/15 rounded-2xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50 resize-none"
+            style={{ minHeight: "44px", maxHeight: "100px" }}
+          />
+          <button onClick={listening ? stop : start}
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${listening ? "bg-red-500 animate-pulse" : "bg-white/10 hover:bg-white/20"}`}>
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 15a7 7 0 0 0 7-7h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 7 7zm-1 4v-2h2v2h-1z" /></svg>
+          </button>
+          <button onClick={send} disabled={!input.trim() || loading || streaming}
+            className="w-11 h-11 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-2xl flex items-center justify-center text-black flex-shrink-0 transition-all">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+          </button>
+        </div>
+        {listening && <p className="text-[11px] text-red-400 mt-1 text-center animate-pulse">🎙️ Listening... speak now</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── STRATEGY PAGE ─────────────────────────────────────────────────────────
+function StrategyPage() {
+  const [form, setForm] = useState({ role: "batting", opponent: "", pitch: "", overs: "", wickets: "" });
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [fieldType, setFieldType] = useState("defensive");
+  const [aggression, setAggression] = useState(50);
+  const [winProb, setWinProb] = useState({ batting: 50, bowling: 50 });
+
+  const pitchTypes = ["Flat", "Seaming", "Spinning", "Bouncy", "Slow & Low"];
+  const opponents = ["Spin-heavy", "Pace attack", "All-rounders", "Balanced", "Inexperienced"];
+
+  const analyze = async () => {
+    if (loading) return;
+    setLoading(true); setResult(null);
+
+    const overs = parseInt(form.overs) || 20;
+    const wickets = parseInt(form.wickets) || 0;
+    const aggrValue = form.role === "batting"
+      ? Math.min(95, 40 + (20 - overs) * 2 + wickets * 3)
+      : Math.max(20, 70 - wickets * 5);
+    setAggression(aggrValue);
+    setFieldType(aggrValue > 60 ? "aggressive" : "defensive");
+
+    const battingWin = form.role === "batting"
+      ? Math.min(85, Math.max(20, 60 - wickets * 5 + (overs > 10 ? 10 : -10)))
+      : Math.min(80, Math.max(20, 40 + wickets * 8));
+    setWinProb({ batting: battingWin, bowling: 100 - battingWin });
+
+    const SYSTEM = `You are CricMind AI — elite cricket tactician. Give match strategy in exactly this format:
+
+## 🎯 Situation Read
+2 lines assessing the match situation critically.
+
+## 📋 Primary Strategy
+The main approach right now (3-4 lines).
+
+## ⚡ Key Tactics
+- Tactic 1 (specific)
+- Tactic 2 (specific)
+- Tactic 3 (specific)
+- Tactic 4 (specific)
+
+## 🎲 If Plan A Fails
+Quick contingency (2 lines).
+
+## 🏆 Win Condition
+One sentence on the path to victory.
+
+Be direct, tactical, use real cricket terms.`;
+
+    try {
+      const reply = await callGemini(SYSTEM,
+        `Situation: ${form.role === "batting" ? "WE BATTING" : "WE BOWLING"}. Opponent: ${form.opponent || "unknown"}. Pitch: ${form.pitch || "normal"}. Overs left: ${form.overs || "?"}. Wickets ${form.role === "batting" ? "lost" : "taken"}: ${form.wickets || "?"}.`
+      );
+      setResult(reply);
+    } catch (e) {
+      setResult(`❌ ${e.message}`);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="overflow-y-auto h-full">
+      <div className="px-4 py-4 space-y-3">
+        {/* Role Toggle */}
+        <div className="flex p-1 bg-white/5 border border-white/10 rounded-2xl">
+          {[["batting", "🏏 Batting"], ["bowling", "🎯 Bowling"]].map(([v, l]) => (
+            <button key={v} onClick={() => setForm(f => ({ ...f, role: v }))}
+              className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${form.role === v ? "bg-amber-500 text-black" : "text-gray-400"}`}>{l}</button>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div>
+          <p className="text-[11px] text-gray-500 font-semibold mb-1.5">Opponent Style</p>
+          <div className="flex flex-wrap gap-1.5">
+            {opponents.map(o => (
+              <button key={o} onClick={() => setForm(f => ({ ...f, opponent: o }))}
+                className={`text-xs px-2.5 py-1.5 rounded-xl border transition-all ${form.opponent === o ? "bg-green-500/20 border-green-500/40 text-green-300" : "bg-white/5 border-white/10 text-gray-400"}`}>{o}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] text-gray-500 font-semibold mb-1.5">Pitch Condition</p>
+          <div className="flex flex-wrap gap-1.5">
+            {pitchTypes.map(p => (
+              <button key={p} onClick={() => setForm(f => ({ ...f, pitch: p }))}
+                className={`text-xs px-2.5 py-1.5 rounded-xl border transition-all ${form.pitch === p ? "bg-blue-500/20 border-blue-500/40 text-blue-300" : "bg-white/5 border-white/10 text-gray-400"}`}>{p}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {[["overs", "Overs Left"], ["wickets", `Wickets ${form.role === "batting" ? "Lost" : "Taken"}`]].map(([k, l]) => (
+            <div key={k}>
+              <p className="text-[11px] text-gray-500 font-semibold mb-1">{l}</p>
+              <input type="number" value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
+                placeholder={k === "overs" ? "e.g. 10" : "e.g. 3"}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/50" />
+            </div>
+          ))}
+        </div>
+
+        <button onClick={analyze} disabled={loading}
+          className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 disabled:opacity-50 text-black font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20">
+          {loading ? <><span className="animate-spin">⟳</span> Analyzing...</> : "📊 Generate Strategy + Field"}
+        </button>
+
+        {/* Visuals */}
+        {result && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <AggressionMeter value={aggression} />
+              <WinProbability batting={winProb.batting} bowling={winProb.bowling} />
+            </div>
+            <FieldPlacement strategy={fieldType} />
+            <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-2xl p-4">
+              <p className="text-green-400 font-black text-sm mb-3">📋 Strategy Card</p>
+              <MD text={result} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── COMMENTARY PAGE ───────────────────────────────────────────────────────
+function CommentaryPage() {
+  const [custom, setCustom] = useState("");
+  const [feed, setFeed] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const { listening, start, stop } = useVoice(t => setCustom(t));
+
+  const quickEvents = [
+    { label: "SIX!", event: "batsman hits a massive flat six over long on, ball lands in the crowd", emoji: "💥" },
+    { label: "FOUR!", event: "batsman drives elegantly through covers for a boundary", emoji: "⚡" },
+    { label: "WICKET!", event: "batsman is caught at mid-off by a diving fielder, huge wicket falls", emoji: "🔥" },
+    { label: "DOT BALL", event: "yorker on off stump, batsman jammed at crease, dot ball, pressure building", emoji: "😤" },
+    { label: "NO BALL", event: "bowler oversteps massively, no ball called, free hit next ball", emoji: "😱" },
+    { label: "REVIEW", event: "batsman reviews LBW decision confidently, crowd holds breath, going upstairs", emoji: "🎥" },
+    { label: "WIDE", event: "bowler bowls a wide down leg side, wasted ball under pressure", emoji: "🙄" },
+    { label: "CENTURY!", event: "batsman raises his bat as he completes a magnificent century, crowd erupts", emoji: "🏆" },
+  ];
+
+  const SYSTEM = `You are the world's greatest cricket commentator — combining Ravi Shastri's drama, Harsha Bhogle's intelligence, and Geoffrey Boycott's bluntness.
+
+Generate 2-3 sentences of ELECTRIC live cricket commentary. Be dramatic, reference crowd atmosphere, pressure, match context. Natural mix of English and Hindi phrases (yaar, arre, kya shot, wah wah). Each event must feel historic. Under 60 words. Return ONLY commentary, no labels.`;
+
+  const gen = async (event) => {
+    if (loading) return;
+    const ev = event || custom;
+    if (!ev.trim()) return;
+    setLoading(true); setCustom("");
+    try {
+      const reply = await callGemini(SYSTEM, `Commentary for: ${ev}`);
+      setFeed(p => [{ event: ev, text: reply, ts: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) }, ...p]);
+    } catch (e) {
+      setFeed(p => [{ event: ev, text: `❌ ${e.message}`, ts: "--:--" }, ...p]);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-4 py-3 space-y-3">
+          <div className="grid grid-cols-4 gap-2">
+            {quickEvents.map(q => (
+              <button key={q.label} onClick={() => gen(q.event)} disabled={loading}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-2 text-center transition-all disabled:opacity-50 active:scale-95">
+                <div className="text-xl mb-0.5">{q.emoji}</div>
+                <div className="text-[10px] font-bold text-white">{q.label}</div>
+              </button>
+            ))}
+          </div>
+
+          {loading && (
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-3">
+              <span className="animate-spin text-amber-400">⟳</span>
+              <span className="text-gray-400 text-sm italic">Generating commentary...</span>
+            </div>
+          )}
+
+          {feed.map((c, i) => (
+            <div key={i} className={`rounded-2xl p-4 border transition-all ${i === 0 ? "bg-gradient-to-br from-amber-500/15 to-orange-500/5 border-amber-500/30" : "bg-white/5 border-white/10"}`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-gray-500">🕐 {c.ts}</span>
+                {i === 0 && <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse">LIVE</span>}
+              </div>
+              <p className={`text-sm font-medium leading-relaxed ${i === 0 ? "text-amber-100" : "text-gray-300"}`}>{c.text}</p>
+              <p className="text-[10px] text-gray-600 mt-2 italic">↳ {c.event}</p>
+            </div>
+          ))}
+
+          {feed.length === 0 && !loading && (
+            <div className="text-center py-10">
+              <div className="text-5xl mb-3">🎙️</div>
+              <p className="text-gray-500 text-sm">Tap an event button above to generate exciting AI commentary!</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 pt-2 border-t border-white/5">
+        <div className="flex gap-2">
+          <input value={custom} onChange={e => setCustom(e.target.value)} onKeyDown={e => { if (e.key === "Enter") gen(); }}
+            placeholder="Describe any match event..."
+            className="flex-1 bg-white/5 border border-white/15 rounded-2xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-amber-500/50" />
+          <button onClick={listening ? stop : start}
+            className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${listening ? "bg-red-500 animate-pulse" : "bg-white/10 hover:bg-white/20"}`}>
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 15a7 7 0 0 0 7-7h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 7 7zm-1 4v-2h2v2h-1z" /></svg>
+          </button>
+          <button onClick={() => gen()} disabled={!custom.trim() || loading}
+            className="w-11 h-11 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-2xl flex items-center justify-center text-black flex-shrink-0">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SCREENSHOT ANALYZER ───────────────────────────────────────────────────
+function ScannerPage() {
+  const [image, setImage] = useState(null);
+  const [imageB64, setImageB64] = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [analysisType, setAnalysisType] = useState("strategy");
+  const fileRef = useRef(null);
+
+  const handleFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImage(e.target.result);
+      setImageB64(e.target.result.split(",")[1]);
+      setResult(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const analysisTypes = [
+    { id: "strategy", label: "Strategy", emoji: "📊" },
+    { id: "scorecard", label: "Scorecard", emoji: "📋" },
+    { id: "fieldset", label: "Field Setup", emoji: "🏟️" },
+    { id: "wagon", label: "Wagon Wheel", emoji: "🎯" },
+  ];
+
+  const SYSTEMS = {
+    strategy: `You are CricMind AI Vision. Analyze this cricket screenshot and provide:
+## 🔍 Match Situation
+What you see in the image.
+## ⚡ Immediate Strategy
+Best tactical move right now.
+## 📋 Key Observations
+3-4 bullet points from the image.
+## 🏆 Recommendation
+One clear action to take.`,
+    scorecard: `Analyze this cricket scorecard/screenshot. Identify key stats, batting/bowling performances, partnerships, and overall match situation. Give insights on who's winning and why.`,
+    fieldset: `Analyze this cricket field placement. Identify fielder positions, gaps in the field, which shots are open, and what bowling strategy is being used. Suggest how a batsman should exploit this field.`,
+    wagon: `Analyze this wagon wheel or shot chart. Identify the batsman's scoring zones, weaknesses, preferred shots, and suggest how a bowler should bowl to exploit the gaps.`,
+  };
+
+  const analyze = async () => {
+    if (!imageB64 || loading) return;
+    setLoading(true); setResult(null);
+    try {
+      const reply = await callGemini(SYSTEMS[analysisType], "Analyze this cricket image thoroughly.", imageB64);
+      setResult(reply);
+    } catch (e) {
+      setResult(`❌ ${e.message}\n\n*Gemini Vision requires a valid API key with vision access.*`);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="overflow-y-auto h-full">
+      <div className="px-4 py-4 space-y-4">
+        {/* Header */}
+        <div className="bg-gradient-to-br from-blue-900/40 to-blue-950/60 border border-blue-500/20 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-2xl">📸</span>
+            <div>
+              <h2 className="text-white font-black">Screenshot Analyzer</h2>
+              <p className="text-blue-400 text-xs">Powered by Gemini Vision AI</p>
+            </div>
+          </div>
+          <p className="text-gray-400 text-xs mt-1">Upload scoreboard, field setup, or wagon wheel — AI analyzes and gives strategy.</p>
+        </div>
+
+        {/* Analysis Type */}
+        <div className="grid grid-cols-4 gap-2">
+          {analysisTypes.map(t => (
+            <button key={t.id} onClick={() => setAnalysisType(t.id)}
+              className={`rounded-xl p-2.5 text-center transition-all border ${analysisType === t.id ? "bg-blue-500/20 border-blue-500/40" : "bg-white/5 border-white/10"}`}>
+              <div className="text-lg">{t.emoji}</div>
+              <div className={`text-[10px] font-bold ${analysisType === t.id ? "text-blue-300" : "text-gray-400"}`}>{t.label}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Upload Zone */}
+        <div
+          onClick={() => fileRef.current?.click()}
+          className="border-2 border-dashed border-white/20 hover:border-amber-500/50 rounded-2xl p-6 text-center cursor-pointer transition-all"
+        >
+          {image ? (
+            <img src={image} alt="uploaded" className="max-h-48 mx-auto rounded-xl object-contain" />
+          ) : (
+            <>
+              <div className="text-4xl mb-3">📁</div>
+              <p className="text-gray-400 text-sm font-medium">Tap to upload screenshot</p>
+              <p className="text-gray-600 text-xs mt-1">Scoreboard · Field · Wagon Wheel</p>
+            </>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" className="hidden"
+            onChange={e => handleFile(e.target.files[0])} />
+        </div>
+
+        {image && (
+          <button onClick={analyze} disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:brightness-110 disabled:opacity-50 text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all">
+            {loading ? <><span className="animate-spin">⟳</span> Analyzing with Gemini Vision...</> : "🔍 Analyze Screenshot"}
+          </button>
+        )}
+
+        {result && (
+          <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border border-blue-500/20 rounded-2xl p-4">
+            <p className="text-blue-400 font-black text-sm mb-3">🔍 AI Analysis</p>
+            <MD text={result} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── DASHBOARD ─────────────────────────────────────────────────────────────
+function DashboardPage({ setPage, coachMode }) {
+  const radarData = { Batting: 72, Bowling: 58, Fielding: 65, Strategy: 80, Mental: 74 };
+  const skillBars = [
+    { name: "Cover Drive", value: 82, color: "#f59e0b" },
+    { name: "Pull Shot", value: 65, color: "#10b981" },
+    { name: "Yorker Defense", value: 48, color: "#ef4444" },
+    { name: "Spin Reading", value: 70, color: "#60a5fa" },
+    { name: "Running Between Wickets", value: 88, color: "#a78bfa" },
+  ];
+  const streak = 7;
+
+  return (
+    <div className="overflow-y-auto h-full">
+      <div className="px-4 py-4 space-y-4">
+        {/* Profile card */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-900/50 to-black border border-amber-500/20 p-4">
+          <div className="absolute right-0 top-0 w-24 h-24 opacity-5 text-9xl">🏏</div>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xl shadow-lg">
+              {coachMode === "batter" ? "🏏" : coachMode === "bowler" ? "🎯" : coachMode === "captain" ? "👑" : "🧤"}
+            </div>
+            <div>
+              <p className="text-white font-black">Cricket Player</p>
+              <p className="text-amber-400 text-xs capitalize">{coachMode} · Level 7</p>
+            </div>
+            <div className="ml-auto text-right">
+              <p className="text-amber-400 font-black text-lg">{streak}</p>
+              <p className="text-gray-500 text-[10px]">day streak 🔥</p>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-3">
+            {[["12", "Sessions"], ["8", "Strategies"], ["24", "Commentary"], ["6", "Skills +"]].map(([v, l]) => (
+              <div key={l} className="flex-1 bg-white/5 rounded-xl p-2 text-center">
+                <p className="text-white font-black text-lg leading-none">{v}</p>
+                <p className="text-gray-500 text-[9px] mt-0.5">{l}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Radar + Skills */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
+            <p className="text-xs font-bold text-white mb-1">⬡ Skill Radar</p>
+            <RadarChart data={radarData} />
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
+            <p className="text-xs font-bold text-white mb-2">💪 Strengths</p>
+            <div className="space-y-2.5">
+              {skillBars.slice(0, 3).map(s => (
+                <div key={s.name}>
+                  <div className="flex justify-between mb-0.5">
+                    <span className="text-[10px] text-gray-400 leading-tight">{s.name}</span>
+                    <span className="text-[10px]" style={{ color: s.color }}>{s.value}</span>
+                  </div>
+                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${s.value}%`, background: s.color }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Weaknesses */}
+        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4">
+          <p className="text-red-400 font-bold text-sm mb-2">⚠️ Areas to Improve</p>
+          <div className="space-y-2">
+            {skillBars.filter(s => s.value < 65).map(s => (
+              <div key={s.name} className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
+                <span className="text-sm text-gray-300 flex-1">{s.name}</span>
+                <span className="text-xs text-red-400 font-bold">{s.value}%</span>
+                <button onClick={() => setPage("coach")} className="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full">Fix →</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Performance Score */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+          <div className="flex justify-between items-center">
+            <p className="text-sm font-bold text-white">🤖 AI Performance Score</p>
+            <span className="text-2xl font-black text-amber-400">74</span>
+          </div>
+          <div className="h-2 bg-white/10 rounded-full overflow-hidden mt-2">
+            <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400" style={{ width: "74%" }} />
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Based on coaching sessions, consistency & improvement velocity</p>
+        </div>
+
+        <button onClick={() => setPage("coach")}
+          className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black py-3.5 rounded-2xl text-sm hover:brightness-110 transition-all shadow-lg shadow-amber-500/20">
+          🏏 Continue Training →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── NAV ───────────────────────────────────────────────────────────────────
+const NAV = [
+  { id: "home", emoji: "🏠", label: "Home" },
+  { id: "coach", emoji: "🤖", label: "Coach" },
+  { id: "strategy", emoji: "📊", label: "Strategy" },
+  { id: "commentary", emoji: "🎙️", label: "Live" },
+  { id: "scanner", emoji: "📸", label: "Scan" },
+  { id: "dashboard", emoji: "📈", label: "Stats" },
+];
+
+const PAGE_TITLES = {
+  home: "CricMind AI",
+  coach: "AI Coach",
+  strategy: "Match Strategy",
+  commentary: "AI Commentary",
+  scanner: "Screenshot Analyzer",
+  dashboard: "Dashboard",
+};
+
+// ─── APP ───────────────────────────────────────────────────────────────────
+export default function App() {
+  const [page, setPage] = useState("home");
+  const [coachMode, setCoachMode] = useState("batter");
+
+  return (
+    <div className="flex flex-col h-screen max-w-md mx-auto select-none"
+      style={{
+        background: "linear-gradient(160deg, #050a05 0%, #0a0f0a 40%, #050908 100%)",
+        fontFamily: "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif",
+      }}>
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0 bg-black/20 backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🏏</span>
+          <span className="text-white font-black text-base tracking-tight">{PAGE_TITLES[page]}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-amber-400/70 font-semibold tracking-wider">GEMINI</span>
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+        </div>
+      </div>
+
+      {/* Live Ticker */}
+      <Ticker />
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        {page === "home" && <HomePage setPage={setPage} coachMode={coachMode} setCoachMode={setCoachMode} />}
+        {page === "coach" && <CoachPage coachMode={coachMode} />}
+        {page === "strategy" && <StrategyPage />}
+        {page === "commentary" && <CommentaryPage />}
+        {page === "scanner" && <ScannerPage />}
+        {page === "dashboard" && <DashboardPage setPage={setPage} coachMode={coachMode} />}
+      </div>
+
+      {/* Bottom Nav */}
+      <div className="border-t border-white/5 bg-black/40 backdrop-blur-xl flex-shrink-0">
+        <div className="flex">
+          {NAV.map(n => (
+            <button key={n.id} onClick={() => setPage(n.id)}
+              className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-all relative ${page === n.id ? "text-amber-400" : "text-gray-600 hover:text-gray-400"}`}>
+              {page === n.id && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-400 rounded-full" />}
+              <span className={`text-base transition-transform ${page === n.id ? "scale-110" : ""}`}>{n.emoji}</span>
+              <span className="text-[9px] font-bold">{n.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
