@@ -174,6 +174,194 @@
     // Local Storage API Key name
     const STORAGE_KEY = "CRICMIND_GEMINI_KEY";
 
+    // ─── NATIVE REACT COMPATIBLE SVG ICON COMPONENT ──────────────────────
+    function Icon({ name, className = "w-5 h-5" }) {
+      const paths = {
+        "home": <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+        "bot": (
+          <>
+            <path d="M12 8V4H8" />
+            <rect width="16" height="12" x="4" y="8" rx="2" />
+            <path d="M2 14h2" />
+            <path d="M20 14h2" />
+            <path d="M15 13v2" />
+            <path d="M9 13v2" />
+          </>
+        ),
+        "layout-grid": (
+          <>
+            <rect width="7" height="7" x="3" y="3" rx="1" />
+            <rect width="7" height="7" x="14" y="3" rx="1" />
+            <rect width="7" height="7" x="14" y="14" rx="1" />
+            <rect width="7" height="7" x="3" y="14" rx="1" />
+          </>
+        ),
+        "mic": (
+          <>
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" x2="12" y1="19" y2="22" />
+          </>
+        ),
+        "mic-off": (
+          <>
+            <line x1="2" x2="22" y1="2" y2="22" />
+            <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2" />
+            <path d="M5 10v1.7a7 7 0 0 0 12 5.19" />
+            <path d="M9 5.2V5a3 3 0 0 1 5.8-1" />
+            <line x1="12" x2="12" y1="19" y2="22" />
+          </>
+        ),
+        "camera": (
+          <>
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+            <circle cx="12" cy="13" r="3" />
+          </>
+        ),
+        "trending-up": (
+          <>
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+            <polyline points="16 7 22 7 22 13" />
+          </>
+        ),
+        "users": (
+          <>
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </>
+        ),
+        "compass": (
+          <>
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+          </>
+        ),
+        "user": (
+          <>
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </>
+        ),
+        "flame": (
+          <>
+            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+          </>
+        ),
+        "shield": (
+          <>
+            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z" />
+          </>
+        ),
+        "award": (
+          <>
+            <circle cx="12" cy="8" r="7" />
+            <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+          </>
+        ),
+        "alert-triangle": (
+          <>
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+            <line x1="12" x2="12" y1="9" y2="13" />
+            <line x1="12" x2="12.01" y1="17" y2="17" />
+          </>
+        ),
+        "activity": (
+          <>
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </>
+        ),
+        "upload-cloud": (
+          <>
+            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
+            <path d="M12 12v9" />
+            <path d="m16 16-4-4-4 4" />
+          </>
+        ),
+        "radio": (
+          <>
+            <circle cx="12" cy="12" r="2" />
+            <path d="M16.24 7.76a6 6 0 0 1 0 8.49" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            <path d="M7.76 16.24a6 6 0 0 1 0-8.49" />
+            <path d="M4.93 19.07a10 10 0 0 1 0-14.14" />
+          </>
+        ),
+        "volume-2": (
+          <>
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          </>
+        ),
+        "volume-x": (
+          <>
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <line x1="23" x2="17" y1="9" y2="15" />
+            <line x1="17" x2="23" y1="9" y2="15" />
+          </>
+        ),
+        "send": (
+          <>
+            <line x1="22" x2="11" y1="2" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </>
+        ),
+        "play": (
+          <>
+            <polygon points="6 3 20 12 6 21 6 3" />
+          </>
+        ),
+        "download": (
+          <>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" x2="12" y1="15" y2="3" />
+          </>
+        ),
+        "cpu": (
+          <>
+            <rect width="16" height="16" x="4" y="4" rx="2" />
+            <rect width="6" height="6" x="9" y="9" rx="1" />
+            <path d="M9 1v3" />
+            <path d="M15 1v3" />
+            <path d="M9 20v3" />
+            <path d="M15 20v3" />
+            <path d="M20 9h3" />
+            <path d="M20 15h3" />
+            <path d="M1 9h3" />
+            <path d="M1 15h3" />
+          </>
+        ),
+        "bar-chart-3": (
+          <>
+            <line x1="18" x2="18" y1="20" y2="10" />
+            <line x1="12" x2="12" y1="20" y2="4" />
+            <line x1="6" x2="6" y1="20" y2="14" />
+          </>
+        )
+      };
+
+      const pathContent = paths[name] || paths["home"];
+
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          {pathContent}
+        </svg>
+      );
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     // ───────────────────────────────────────────────
     // DUAL-MODE GEMINI INTEGRATION & MOCK RESPONSE SIMULATOR
     // ───────────────────────────────────────────────
@@ -1023,7 +1211,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
             <div>
               <div className="flex justify-between items-center mb-2.5">
                 <p className="text-[10px] text-amber-400 font-display font-black tracking-widest uppercase flex items-center gap-1.5">
-                  <i data-lucide="users" className="w-3.5 h-3.5 text-amber-400"></i> Set Player Role
+                  <Icon name="users" className="w-3.5 h-3.5 text-amber-400" /> Set Player Role
                 </p>
                 <span className="text-[9px] text-gray-500 font-semibold uppercase">AI customizes responses</span>
               </div>
@@ -1050,7 +1238,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
             {/* Quick Access Grid */}
             <div>
               <p className="text-[10px] text-amber-400 font-display font-black tracking-widest uppercase mb-2.5 flex items-center gap-1.5">
-                <i data-lucide="compass" className="w-3.5 h-3.5 text-amber-400"></i> Features Room
+                <Icon name="compass" className="w-3.5 h-3.5 text-amber-400" /> Features Room
               </p>
               <div className="grid grid-cols-2 gap-2.5">
                 {features.map(f => (
@@ -1070,7 +1258,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
                 className="mt-3.5 w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3.5 flex items-center gap-4 transition-all duration-200"
               >
                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 flex-shrink-0">
-                  <i data-lucide="trending-up" className="w-5 h-5"></i>
+                  <Icon name="trending-up" className="w-5 h-5" />
                 </div>
                 <div className="text-left flex-1">
                   <div className="text-white font-display font-black text-sm">Dashboard & Strengths Chart</div>
@@ -1287,14 +1475,14 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
                     : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
                 }`}
               >
-                <i data-lucide={listening ? "mic-off" : "mic"} className="w-5 h-5"></i>
+                <Icon name={listening ? "mic-off" : "mic"} className="w-5 h-5" />
               </button>
               <button
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || loading || isStreaming}
                 className="w-12 h-12 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-2xl flex items-center justify-center text-black flex-shrink-0 transition-all shadow-lg shadow-amber-500/20"
               >
-                <i data-lucide="send" className="w-5 h-5"></i>
+                <Icon name="send" className="w-5 h-5" />
               </button>
             </div>
             {listening && <p className="text-[10px] text-red-400 font-bold text-center mt-2 animate-pulse uppercase tracking-wider">🎙️ Stadium Mic Open... Speak clearly now!</p>}
@@ -1407,7 +1595,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
             {/* Header Description */}
             <div className="bg-gradient-to-br from-green-950/80 to-black border border-green-500/20 rounded-3xl p-4 glow-green">
               <h2 className="text-white font-display font-black text-sm uppercase tracking-wider flex items-center gap-1.5">
-                <i data-lucide="bar-chart-3" className="text-amber-400 w-4 h-4"></i> Match Strategy Analyzer
+                <Icon name="bar-chart-3" className="text-amber-400 w-4 h-4" /> Match Strategy Analyzer
               </h2>
               <p className="text-gray-400 text-xs mt-1 leading-normal">
                 Feed in live match scenarios to instantly generate professional-grade team strategy cards, dynamic aggression ranges, and custom fielding overlays.
@@ -1504,7 +1692,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
                 </>
               ) : (
                 <>
-                  <i data-lucide="cpu" className="w-4 h-4"></i> Generate Team Strategy Card
+                  <Icon name="cpu" className="w-4 h-4" /> Generate Team Strategy Card
                 </>
               )}
             </button>
@@ -1525,7 +1713,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
                   <div className="flex justify-between items-center mb-3.5 pb-2 border-b border-white/5">
                     <p className="text-green-400 font-display font-black text-sm uppercase tracking-wider">📋 AI Team Strategy Card</p>
                     <button className="text-[10px] bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                      <i data-lucide="download" className="w-3 h-3"></i> DOWNLOAD
+                      <Icon name="download" className="w-3 h-3" /> DOWNLOAD
                     </button>
                   </div>
                   <MD text={result} />
@@ -1618,7 +1806,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
             <div className="bg-gradient-to-br from-red-950/60 to-black border border-red-500/20 rounded-3xl p-4 glow-red flex items-center justify-between">
               <div>
                 <h2 className="text-white font-display font-black text-sm uppercase tracking-wider flex items-center gap-1.5">
-                  <i data-lucide="mic" className="text-red-500 w-4 h-4"></i> AI live Commentary
+                  <Icon name="mic" className="text-red-500 w-4 h-4" /> AI live Commentary
                 </h2>
                 <p className="text-gray-400 text-[10px] mt-0.5 leading-normal">
                   Click any event button below or record a customized one to hear Ravi Shastri-style live stadium commentary.
@@ -1683,7 +1871,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
                       onClick={() => speakText(f.commentary, true)}
                       className="ml-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-black border border-amber-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1 uppercase transition-all"
                     >
-                      <i data-lucide="volume-2" className="w-3 h-3"></i> Speak Again
+                      <Icon name="volume-2" className="w-3 h-3" /> Speak Again
                     </button>
                   </div>
                 </div>
@@ -1692,7 +1880,7 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
               {feed.length === 0 && !loading && (
                 <div className="text-center py-10 bg-white/5 border border-white/10 rounded-3xl">
                   <div className="text-amber-400 mx-auto w-14 h-14 flex items-center justify-center bg-amber-500/10 rounded-2xl border border-amber-500/20 mb-3 animate-pulse">
-                    <i data-lucide="radio" className="w-7 h-7"></i>
+                    <Icon name="radio" className="w-7 h-7" />
                   </div>
                   <p className="text-gray-400 text-xs font-semibold">Radio Room Empty</p>
                   <p className="text-gray-500 text-[10px] mt-1 max-w-[200px] mx-auto">Click any of the stadium triggers above to generate live commentary comments.</p>
@@ -1722,14 +1910,14 @@ Maintain a dot-ball percentage above **45%** to induce a forced error.`;
                     : "bg-white/5 hover:bg-white/10 border-white/10 text-white"
                 }`}
               >
-                <i data-lucide={listening ? "mic-off" : "mic"} className="w-5 h-5"></i>
+                <Icon name={listening ? "mic-off" : "mic"} className="w-5 h-5" />
               </button>
               <button
                 onClick={() => generateCommentary()}
                 disabled={!customDescription.trim() || loading}
                 className="w-12 h-12 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 rounded-2xl flex items-center justify-center text-black flex-shrink-0 transition-all shadow-lg shadow-amber-500/20"
               >
-                <i data-lucide="play" className="w-5 h-5"></i>
+                <Icon name="play" className="w-5 h-5" />
               </button>
             </div>
             {listening && <p className="text-[10px] text-red-400 font-bold text-center mt-2 animate-pulse uppercase tracking-wider">🎙️ Voice Recording... Speak clearly now!</p>}
@@ -1818,7 +2006,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
             {/* Page Header */}
             <div className="bg-gradient-to-br from-blue-950/80 to-black border border-blue-500/20 rounded-3xl p-4 glow-green">
               <h2 className="text-white font-display font-black text-sm uppercase tracking-wider flex items-center gap-1.5">
-                <i data-lucide="camera" className="text-blue-400 w-4 h-4"></i> Batting Posture Screenshot AI
+                <Icon name="camera" className="text-blue-400 w-4 h-4" /> Batting Posture Screenshot AI
               </h2>
               <p className="text-gray-400 text-xs mt-1 leading-normal">
                 Upload your batting stance posture or a live match scorecard screenshot. Our Vision model parses structural angles and delivers immediate correction metrics.
@@ -1860,7 +2048,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
               ) : (
                 <div className="space-y-3 py-2">
                   <div className="text-amber-400 mx-auto w-12 h-12 flex items-center justify-center bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                    <i data-lucide="upload-cloud" className="w-6 h-6"></i>
+                    <Icon name="upload-cloud" className="w-6 h-6" />
                   </div>
                   <p className="text-gray-300 text-xs font-semibold">Click to select Stance or Scorecard screenshot</p>
                   <p className="text-gray-500 text-[10px] uppercase tracking-wider font-bold">Supports PNG, JPG up to 5MB</p>
@@ -1928,7 +2116,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-green-950/80 to-black border border-green-500/25 p-4 glow-green">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg border border-white/10 text-black">
-                  <i data-lucide="user" className="w-5 h-5"></i>
+                  <Icon name="user" className="w-5 h-5 text-black" />
                 </div>
                 <div>
                   <p className="text-white font-display font-black text-sm uppercase leading-none tracking-tight">Active Player</p>
@@ -1937,7 +2125,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
                 <div className="ml-auto text-right">
                   <p className="text-amber-400 font-display font-black text-2xl leading-none">7</p>
                   <p className="text-gray-500 text-[8px] font-black uppercase tracking-widest mt-0.5 flex items-center justify-end gap-1">
-                    Day Streak <i data-lucide="flame" className="w-3.5 h-3.5 text-orange-500 animate-pulse"></i>
+                    Day Streak <Icon name="flame" className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
                   </p>
                 </div>
               </div>
@@ -1959,7 +2147,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
               {/* Radar view */}
               <div className="bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col justify-between">
                 <p className="text-xs font-display font-black text-white uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <i data-lucide="shield" className="text-amber-400 w-4 h-4"></i> Skills Radar Map
+                  <Icon name="shield" className="text-amber-400 w-4 h-4" /> Skills Radar Map
                 </p>
                 <RadarChart data={radarData} />
               </div>
@@ -1967,7 +2155,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
               {/* Strengths meter */}
               <div className="bg-white/5 border border-white/10 rounded-3xl p-4">
                 <p className="text-xs font-display font-black text-white uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <i data-lucide="award" className="text-amber-400 w-4 h-4"></i> Current Skill Levels
+                  <Icon name="award" className="text-amber-400 w-4 h-4" /> Current Skill Levels
                 </p>
                 <div className="space-y-3.5">
                   {skillBars.map(s => (
@@ -1989,7 +2177,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
             {/* Areas to improve alert box */}
             <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-4 glow-red">
               <p className="text-red-400 font-display font-black text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <i data-lucide="alert-triangle" className="text-red-400 w-4 h-4 animate-bounce"></i> Weakness Fix Center
+                <Icon name="alert-triangle" className="text-red-400 w-4 h-4 animate-bounce" /> Weakness Fix Center
               </p>
               <p className="text-gray-400 text-[10px] leading-normal mb-3.5">
                 The Coach AI detects that your **sweep shot vs spin** and **yorker down-jam** are well below safety metrics. Instantly load correction drills:
@@ -2017,7 +2205,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
               <div className="flex justify-between items-center">
                 <div>
                   <h4 className="text-sm font-display font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                    <i data-lucide="activity" className="text-amber-400 w-4 h-4"></i> AI Performance Score
+                    <Icon name="activity" className="text-amber-400 w-4 h-4" /> AI Performance Score
                   </h4>
                   <p className="text-gray-500 text-[9px] mt-0.5">Calculated from dynamic improvement angles</p>
                 </div>
@@ -2109,7 +2297,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${voiceActive ? "text-amber-400 bg-amber-500/10 border border-amber-500/20" : "text-gray-500 bg-white/5 border border-white/5"}`}
                 title="Toggle Voice Text Synthesis Playback"
               >
-                <i data-lucide={voiceActive ? "volume-2" : "volume-x"} className="w-4 h-4"></i>
+                <Icon name={voiceActive ? "volume-2" : "volume-x"} className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -2139,7 +2327,7 @@ The upload batting stance has been successfully parsed by CricMind Vision models
                   {page === n.id && (
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-400 rounded-full" />
                   )}
-                  <i data-lucide={n.icon} className={`w-5 h-5 transition-transform duration-200 ${page === n.id ? "scale-110" : ""}`}></i>
+                  <Icon name={n.icon} className={`w-5 h-5 transition-transform duration-200 ${page === n.id ? "scale-110" : ""}`} />
                   <span className="text-[8px] font-black uppercase tracking-wider leading-none">{n.label}</span>
                 </button>
               ))}
